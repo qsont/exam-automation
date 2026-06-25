@@ -4,7 +4,7 @@ from playwright.async_api import Page, Locator
 
 
 async def get_uuids(page):
-  await page.evaluate("""
+  return await page.evaluate("""
   [...document.querySelectorAll('[id]')]
   .map(el => el.id)
   .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
@@ -23,11 +23,8 @@ async def get_mark_scheme(page: Page) -> Locator:
   return capture
 
 async def click_mark_scheme_btn(question):
-  print("Attempting to click mark scheme")
   mark_scheme_btn = question.locator('[data-analytics-name="clickMarkScheme"]')
-  print(mark_scheme_btn)
   await mark_scheme_btn.click()
-  print("Successfully clicked Mark Scheme")
 
 async def keypress_esc(page: Page):
   await page.keyboard.press("Escape")

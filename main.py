@@ -1,17 +1,20 @@
 import asyncio
 import sys
+import json
+from decouple import config
+from pathlib import Path
+from playwright.async_api import async_playwright, Page
 
 from browser.connection import connect_cdp
 from capture.questions import find_question_cards
 from capture.dom import get_card, get_question, get_mark_scheme, click_mark_scheme_btn, keypress_esc, clone_mark_scheme_element, remove_cloned_mark_scheme
 from capture.screenshot import screenshot_question, screenshot_mark_scheme
 
-from decouple import config
-from pathlib import Path
-from playwright.async_api import async_playwright, Page
+from document.builder import doc_builder
 
 
-# ── Configuration (loaded from .env) ─────────────────────────────────────────
+
+# Configuration (loaded from .env) 
 ENDPOINT_URL  = config("ENDPOINT_URL")
 PROFILE_PATH  = config("PROFILE_PATH")
 TARGET_URL    = config("TARGET_URL", default="")
@@ -22,6 +25,7 @@ MODAL_SETTLE_MS = config("MODAL_SETTLE_MS", cast=int, default=1200)
 # UUID regex — matches bare question wrapper IDs (36-char hex, no suffix)
 UUID_PATTERN = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
+user_out_dir = OUTPUT_DIR
 
 # Per-question capture
 async def capture_question_card(page: Page, uuid: str, index: int, output_dir: Path):
@@ -44,6 +48,10 @@ async def capture_question_card(page: Page, uuid: str, index: int, output_dir: P
 
 # Main 
 async def main():
+    
+    # Load JSON config first
+    with open('config/config.json') as fp:
+        config = json.load(fp)
 
     async with async_playwright() as p:
         
@@ -76,10 +84,24 @@ async def main():
 
         uuids = await find_question_cards(page, browser)
 
+        print("This feature will be removed soon!")
         # Name a directory if not setup in .env file
         user_out_dir = Path(OUTPUT_DIR) if OUTPUT_DIR else Path(f"outputs/{input("\033[0;33m[system]\033[0m No directory configured. Enter folder name => outputs/")}")
 
-        print(f"\n✅  Found {len(uuids)} question(s).\n")
+        # docx_save
+        properties = {}
+        print("✅ This part will not create the docx files. Please enter the details accordingly")
+        
+        topic = input("Enter topic -> ").replace("/", " ")
+        paper_and_type = input("Enter paper and type -> ")
+        
+        properties['company_name'] = config['company_name']
+        properties['header_brand'] = config['header_brand']
+        properties['subject'] = config['subject'] # Put on config.json because it can be redundant
+        properties['topic'] = topic.strip()
+        properties['paper_and_type'] = paper_and_type.strip()
+
+        print(f"\n✅  Found {len(uuids)} question(s).")
         print(f"🛠️  Closing open modal if any...\n")
         await page.keyboard.press("Escape")
         
@@ -108,6 +130,12 @@ async def main():
             f"    Files saved to: {user_out_dir.resolve()}\n"
         )
         await browser.close()
+    
+        # Call document generator here
+        # Questions & Mark Scheme
+        doc_builder(user_out_dir, properties)
+        # Questions Only
+        doc_builder(user_out_dir, properties, withMarkScheme=False)
 
 
 if __name__ == "__main__":
